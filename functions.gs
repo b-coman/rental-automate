@@ -4,7 +4,9 @@ function doGet(e) {
   //operation = 'monthlyReservations';
 
   if (operation === 'monthlyReservations') {
-    return getMonthlyReservations();
+    var today = new Date();
+    today.setHours(0,0,0,0);
+    return getMonthlyReservations(today);
   } else if (operation === 'dailyCheck') {
     return getDailyCheck();
   } else if (operation === 'changedReservations') {
@@ -16,8 +18,7 @@ function doGet(e) {
 
 
 function getMonthlyReservations(startDate) {
-  // Remove the line below if you want to use the function parameter
-  //var startDate = '2023/10/22';
+  //var startDate = '2024/1/1'
   
   // Access the sheet
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('reservations');
@@ -27,14 +28,21 @@ function getMonthlyReservations(startDate) {
   
   // Parse the startDate parameter
   var startDateTime = new Date(startDate);
-  console.log(startDate);
-  console.log(startDateTime);
+  //console.log(startDate);
+  //console.log(startDateTime);
   
   // Get the first day of the next month
   var firstDayOfNextMonth = new Date(startDateTime.getFullYear(), startDateTime.getMonth() + 1, 1);
   
   // Prepare a result array
   var result = [];
+  
+  // Variables to hold special text
+  var departureText = '';
+  var otherReservationsText = '';
+  
+  // Get the name of the month from the startDate
+  var monthNameText = monthName(startDateTime.getMonth());
   
   // Iterate through the data
   for (var i = 1; i < data.length; i++) {  // Start at 1 to skip the header row
@@ -47,9 +55,13 @@ function getMonthlyReservations(startDate) {
     
     // Check if the specified date falls within the reservation period
     // or if the reservation check-in is within the specified date range
-    if ((checkinDate <= startDateTime && checkoutDate >= startDateTime) || 
-        (checkinDate >= startDateTime && checkinDate < firstDayOfNextMonth)) {
-      
+    if (checkinDate <= startDateTime && checkoutDate >= startDateTime) {
+      // Generate the departure text
+      var dayOfWeek = dayName(checkoutDate.getDay());
+      var formattedCheckoutDate = Utilities.formatDate(checkoutDate, "Europe/Bucharest", "dd.MM");
+      departureText = dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1) + ', ' + formattedCheckoutDate + ' va pleca ' + data[i][0] + '. ';
+      otherReservationsText = 'Celelalte rezervari pentru ' + monthNameText + ' sunt:\n';
+    } else if (checkinDate >= startDateTime && checkinDate < firstDayOfNextMonth) {
       // Format the check-in and check-out dates
       var formattedCheckinDate = Utilities.formatDate(checkinDate, "Europe/Bucharest", "dd.MM");
       var formattedCheckoutDate = Utilities.formatDate(checkoutDate, "Europe/Bucharest", "dd.MM");
@@ -72,8 +84,8 @@ function getMonthlyReservations(startDate) {
     }
   }
   
-  // Convert result array to a single string, with each reservation on a new line
-  var resultText = result.join('\n');
+  // Combine special texts and reservation list
+  var resultText = departureText + otherReservationsText + result.join('\n');
 
   console.log(resultText);
   
