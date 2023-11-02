@@ -17,8 +17,9 @@ function doGet(e) {
 }
 
 
+
 function getMonthlyReservations(startDate) {
-  //var startDate = '2024/1/1'
+  //var startDate = '2023/11/2'
   
   // Access the sheet
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('reservations');
@@ -28,14 +29,9 @@ function getMonthlyReservations(startDate) {
   
   // Parse the startDate parameter
   var startDateTime = new Date(startDate);
-  //console.log(startDate);
-  //console.log(startDateTime);
   
   // Get the first day of the next month
   var firstDayOfNextMonth = new Date(startDateTime.getFullYear(), startDateTime.getMonth() + 1, 1);
-  
-  // Prepare a result array
-  var result = [];
   
   // Variables to hold special text
   var departureText = '';
@@ -43,6 +39,9 @@ function getMonthlyReservations(startDate) {
   
   // Get the name of the month from the startDate
   var monthNameText = monthName(startDateTime.getMonth());
+  
+  // Array to hold reservation objects for sorting
+  var reservations = [];
   
   // Iterate through the data
   for (var i = 1; i < data.length; i++) {  // Start at 1 to skip the header row
@@ -56,37 +55,75 @@ function getMonthlyReservations(startDate) {
     // Check if the specified date falls within the reservation period
     // or if the reservation check-in is within the specified date range
     if (checkinDate <= startDateTime && checkoutDate >= startDateTime) {
-      // Generate the departure text
-      var dayOfWeek = dayName(checkoutDate.getDay());
-      var formattedCheckoutDate = Utilities.formatDate(checkoutDate, "Europe/Bucharest", "dd.MM");
-      departureText = dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1) + ', ' + formattedCheckoutDate + ' va pleca ' + data[i][0] + '. ';
-      otherReservationsText = 'Celelalte rezervari pentru ' + monthNameText + ' sunt:\n';
-    } else if (checkinDate >= startDateTime && checkinDate < firstDayOfNextMonth) {
-      // Format the check-in and check-out dates
-      var formattedCheckinDate = Utilities.formatDate(checkinDate, "Europe/Bucharest", "dd.MM");
-      var formattedCheckoutDate = Utilities.formatDate(checkoutDate, "Europe/Bucharest", "dd.MM");
+      // Get today's and tomorrow's date
+      var today = new Date();
+      today.setHours(0,0,0,0);
+      var tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
       
-      // Determine the correct word for adult/adults and child/children
-      var adultWord = data[i][5] == 1 ? 'adult' : 'adulti';
-      var childrenWord = data[i][6] == 0 ? '' : data[i][6] == 1 ? 'copil' : 'copii';
-      
-      // Build the reservation details string
-      var reservationDetails = formattedCheckinDate + ' - ' + formattedCheckoutDate +
-        ' / ' + data[i][0] +
-        ' (' + data[i][5] + ' ' + adultWord;
-      if (childrenWord) {
-        reservationDetails += ' + ' + data[i][6] + ' ' + childrenWord;
+      // Determine the day of week text
+      var dayOfWeekText;
+      if (checkoutDate.getFullYear() === today.getFullYear() &&
+          checkoutDate.getMonth() === today.getMonth() &&
+          checkoutDate.getDate() === today.getDate()) {
+        dayOfWeekText = 'Azi';
+      } else if (checkoutDate.getFullYear() === tomorrow.getFullYear() &&
+                 checkoutDate.getMonth() === tomorrow.getMonth() &&
+                 checkoutDate.getDate() === tomorrow.getDate()) {
+        dayOfWeekText = 'Maine';
+      } else {
+        var dayOfWeek = dayName(checkoutDate.getDay());
+        dayOfWeekText = dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1);
       }
-      reservationDetails += ')';
-      
-      // Add the reservation details to the result array
-      result.push(reservationDetails);
+
+      // Generate the departure text
+      var formattedCheckoutDate = Utilities.formatDate(checkoutDate, "Europe/Bucharest", "dd.MM");
+      departureText = dayOfWeekText + ', ' + formattedCheckoutDate + ' va pleca ' + data[i][0] + '. ';
+      otherReservationsText = 'Celelalte rezervari pentru luna ' + monthNameText + ' sunt:\n';
+    } else if (checkinDate >= startDateTime && checkinDate < firstDayOfNextMonth) {
+      // Create a reservation object and add it to the reservations array
+      reservations.push({
+        checkinDate: checkinDate,
+        checkoutDate: checkoutDate,
+        reservationData: data[i]
+      });
     }
   }
   
+  // Sort the reservations array by checkin date
+  reservations.sort(function(a, b) {
+    return a.checkinDate - b.checkinDate;
+  });
+  
+  // Generate the result array from the sorted reservations array
+  var result = reservations.map(function(reservation) {
+    // Extract data from the reservation object
+    var checkinDate = reservation.checkinDate;
+    var checkoutDate = reservation.checkoutDate;
+    var data = reservation.reservationData;
+    
+    // Format the check-in and check-out dates
+    var formattedCheckinDate = Utilities.formatDate(checkinDate, "Europe/Bucharest", "dd.MM");
+    var formattedCheckoutDate = Utilities.formatDate(checkoutDate, "Europe/Bucharest", "dd.MM");
+    
+    // Determine the correct word for adult/adults and child/children
+    var adultWord = data[5] == 1 ? 'adult' : 'adulti';
+    var childrenWord = data[6] == 0 ? '' : data[6] == 1 ? 'copil' : 'copii';
+    
+    // Build the reservation details string
+    var reservationDetails = formattedCheckinDate + ' - ' + formattedCheckoutDate +
+      ' / ' + data[0] +
+      ' (' + data[5] + ' ' + adultWord;
+    if (childrenWord) {
+      reservationDetails += ' + ' + data[6] + ' ' + childrenWord;
+    }
+    reservationDetails += ')';
+    
+    return reservationDetails;
+  });
+  
   // Combine special texts and reservation list
   var resultText = departureText + otherReservationsText + result.join('\n');
-
   console.log(resultText);
   
   // Return as text output
